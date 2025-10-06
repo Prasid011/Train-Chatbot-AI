@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Login</title>
+  <script>
+    const savedTheme = localStorage.getItem("theme") || "dark";
+    document.write(`<link id="theme-style" rel="stylesheet" href="/static/style-${savedTheme}.css">`);
+  </script>
+</head>
+<body class="auth">
+  <div class="auth-card">
+    <h2>Login</h2>
+    <form id="login-form"><!-- the form uses JavaScript to submit data -->
+      <input type="text" name="username" required placeholder="Username" />
+      <input type="password" name="password" required placeholder="Password" />
+      <button type="submit">Login</button>
+    </form>
+   Don’t have an account? <a href="/signup">Sign up here</a><!-- it will redirect to sinup page if user doesnt have an account -->
+    <a class="back" href="/">← Back to Home</a>
+  </div>
+
+  <script>// attachs submit event to the login form
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const form = e.target;
+
+      // sens login request to server via fetch API
+      const response = await fetch('/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: form.username.value,
+          password: form.password.value
+        })
+      });
+
+      const data = await response.json();
+
+      if (data.success) {                   // Parses server response
+        window.location.href = '/';       // redirects to homepage if login successful
+      } else {
+        alert('Login failed: ' + data.message); // if it fails
+      }
+    });
+  </script>
+</body>
+</html>

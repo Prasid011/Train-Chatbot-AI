@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>CheapXpress Chat</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <link id="theme-style" rel="stylesheet" href="" />
+  <script>
+    const savedTheme = localStorage.getItem("theme") || "dark";
+    window.addEventListener("DOMContentLoaded", () => {
+      document.getElementById("theme-style").href = savedTheme === "dark"
+        ? "/static/style-dark.css"
+        : "/static/style-light.css";
+    });
+  </script>
+</head>
+<body>
+  <div class="chat-wrapper">
+   
+    <header>
+      <div class="chat-header-container">
+        <h1>CheapXpress</h1>
+        <div class="header-controls">
+          <!-- them selector and navigation buttons -->
+          <select id="themeSelector" onchange="setTheme(this.value)">
+            <option value="light">Light Theme</option>
+            <option value="dark">Dark Theme</option>
+          </select>
+          <!-- Login, Sinup, and Logout buttons -->
+          <button id="loginBtn" onclick="window.location.href='/login'">Login</button>
+          <button id="signupBtn" onclick="window.location.href='/signup'">Signup</button>
+          <button id="logoutBtn" style="display: none;">Logout</button>
+        </div>
+      </div>
+    </header>
+
+    
+    <div class="main-chat-area">
+      <div class="welcome-box" id="welcomeBox">Checking login status...</div><!-- Display welcome stuff -->
+      <div class="chatbox" id="chatbox"></div><!-- this contains cht message box -->
+    </div>
+
+    <!-- Foter -->
+    <footer class="chat-footer">
+      <input type="text" id="input" placeholder="Ask something..." onkeydown="if(event.key === 'Enter') sendMessage()" />
+      <button id="sendBtn">Send</button>
+    </footer>
+  </div>
+
+  <!-- Tost Notification -->
+  <div id="toast" class="toast"> Please log in to chat with CheapXpress</div>
+
+  <script>
+    let currentUserType = 'user';//Default role 
+    let isLoggedIn = false;      //Tracks login status
+
+    // function to change the themes and store preferenc
+    function setTheme(theme) {
+      const themeLink = document.getElementById("theme-style");
+      themeLink.href = theme === "dark"
+        ? "/static/style-dark.css"
+        : "/static/style-light.css";
+      localStorage.setItem("theme", theme);
+      document.getElementById("themeSelector").value = theme;
+    }
+      // function to send user message to chatbot and show msg
+    function sendMessage() {
+      if (!isLoggedIn) {
+        showToast();
+        return;
+      }
+
+      const input = document.getElementById("input");
+      const message = input.value.trim();
+      if (!message) return;// ignores the empty messagges
+        // will show users messagge in chatbox
+      const chatbox = document.getElementById("chatbox");
+      chatbox.innerHTML += `<div class="chat-message user">${message}</div>`;
+      input.value = "";
+        // will know baed on user type staff or chat?
+      const endpoint = currentUserType === 'staff' ? "/staff-chat" : "/chat";
+      //Send message to the appropriate chatbot endpoint
+      fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message })
+      })
+      .then(res => res.json())
+      .then(data => {
+          //  line breaks in bot reply
+        const replyHTML = data.reply
+          .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>')
+          .replace(/\n/g, "<br>");
+        chatbox.innerHTML += `<div class="chat-message bot">${replyHTML}</div>`;
+        chatbox.scrollTop = chatbox.scrollHeight;
+      });
+    }
+      //Lods chat history from server for users who r logged in
+    function loadChatHistory() {
+      fetch('/chat-history')
+        .then(res => res.json())
+        .then(history => {
+          const chatbox = document.getElementById("chatbox");
+          chatbox.innerHTML = "";
+          history.forEach(entry => {
+            const className = entry.sender_type === 'user' ? 'user' : 'bot';
+            const messageHTML = entry.message
+              .replace(/(https?:\/\/[^\s]+)/g, '<a href="$1" target="_blank">$1</a>')
+              .replace(/\n/g, "<br>");
+            chatbox.innerHTML += `<div class="chat-message ${className}">${messageHTML}</div>`;
+          });
+          chatbox.scrollTop = chatbox.scrollHeight;
+        });
+    }
+      // shows toast messagge if unauthenticated user tries to interact
+    function showToast() {
+      const toast = document.getElementById("toast");
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 3000);
+    }
+
+    document.addEventListener("DOMContentLoaded", () => {
+      setTheme(localStorage.getItem("theme") || "dark");
+            // checks if the user is logged in
+      fetch('/session-status')
+        .then(res => res.json())
+        .then(data => {
+          isLoggedIn = data.loggedIn;
+          currentUserType = data.userType || 'user';
+
+          const input = document.getElementById("input");
+          const sendBtn = document.getElementById("sendBtn");
+          const welcomeBox = document.getElementById("welcomeBox");
+             // Shows/hides  login/signup/logout buttons
+          document.getElementById("loginBtn").style.display = isLoggedIn ? "none" : "inline-block";
+          document.getElementById("signupBtn").style.display = isLoggedIn ? "none" : "inline-block";
+          document.getElementById("logoutBtn").style.display = isLoggedIn ? "inline-block" : "none";
+
+          if (!isLoggedIn) {              // Disable input for users not logged in
+            input.addEventListener("click", showToast);
+            sendBtn.addEventListener("click", showToast);
+            welcomeBox.innerHTML = "Welcome to CheapXpress. Please log in to use the chatbot.";
+          } else {
+            input.disabled = false;
+            sendBtn.disabled = false;
+
+            input.removeEventListener("click", showToast);
+            sendBtn.removeEventListener("click", showToast);
+
+             // Show the starting msg based on users type
+            if (currentUserType === 'staff') {
+              document.getElementById("chatbox").innerHTML = "<div class='chat-message bot'> This Chatbot gives Emergency and Disruption Details.</div>";
+              welcomeBox.innerHTML = "Welcome back, staff member!";
+            } else {
+              welcomeBox.innerHTML = "Welcome back! Ask CheapXpress anything about your journey.";
+              loadChatHistory();
+            }
+              //Handels logout
+            document.getElementById("logoutBtn").addEventListener("click", () => {
+              fetch('/logout').then(() => window.location.reload());
+            });
+          }
+        });
+    });
+  </script>
+</body>
+</html>
